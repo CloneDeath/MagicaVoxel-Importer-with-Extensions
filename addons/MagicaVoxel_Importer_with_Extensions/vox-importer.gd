@@ -48,6 +48,18 @@ func get_import_options(_preset):
 		{
 			'name': 'SnapToGround',
 			'default_value': false
+		},
+		{
+			'name': 'RotationX',
+			'default_value': 0.0
+		},
+		{
+			'name': 'RotationY',
+			'default_value': 0.0
+		},
+		{
+			'name': 'RotationZ',
+			'default_value': 0.0
 		}
 	]
 
@@ -65,6 +77,17 @@ func import(source_path, destination_path, options, _platforms, _gen_files):
 	if options.has("SnapToGround"):
 		snaptoground = bool(options.SnapToGround)
 
+	var rotation_x := 0.0
+	if options.RotationX:
+		rotation_x = deg2rad(float(options.RotationX))
+
+	var rotation_y := 0.0
+	if options.RotationY:
+		rotation_y = deg2rad(float(options.RotationY))
+
+	var rotation_z := 0.0
+	if options.RotationZ:
+		rotation_z = deg2rad(float(options.RotationZ))
 
 	var file = File.new()
 	var err = file.open(source_path, File.READ)
@@ -75,7 +98,7 @@ func import(source_path, destination_path, options, _platforms, _gen_files):
 
 	var identifier = PoolByteArray([ file.get_8(), file.get_8(), file.get_8(), file.get_8() ]).get_string_from_ascii()
 	var version = file.get_32()
-	print('Importing: ', source_path, ' (scale: ', scale, ', file version: ', version, ', greedy mesh: ', greedy, ', snap to ground: ', snaptoground, ')');
+	print('Importing: ', source_path, ' (scale: ', scale, ', file version: ', version, ', greedy mesh: ', greedy, ', snap to ground: ', snaptoground, ', rotation: (', rotation_x, ',', rotation_y, ',', rotation_z, ')');
 
 	var vox = VoxData.new();
 	if identifier == 'VOX ':
@@ -90,6 +113,20 @@ func import(source_path, destination_path, options, _platforms, _gen_files):
 		mesh = GreedyMeshGenerator.new().generate(vox, voxel_data, scale, snaptoground)
 	else:
 		mesh = CulledMeshGenerator.new().generate(vox, voxel_data, scale, snaptoground)
+
+	# Full mesh rotation
+	if rotation_x != 0.0 or rotation_y != 0.0 or rotation_z != 0.0:
+		var mdt = MeshDataTool.new()
+		mdt.create_from_surface(mesh, 0)
+		for i in range(mdt.get_vertex_count()):
+			var vert = mdt.get_vertex(i)
+			vert = vert.rotated(Vector3(1, 0, 0), rotation_x)
+			vert = vert.rotated(Vector3(0, 1, 0), rotation_y)
+			vert = vert.rotated(Vector3(0, 0, 1), rotation_z)
+			mdt.set_vertex(i, vert)
+		
+		mesh.surface_remove(0)
+		mdt.commit_to_surface(mesh)
 
 	var full_path = "%s.%s" % [ destination_path, get_save_extension() ]
 	return ResourceSaver.save(full_path, mesh)
